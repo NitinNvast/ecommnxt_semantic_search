@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: semantic-search
+  namespace: xirify-dev-ns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: semantic-search
+  template:
+    metadata:
+      labels:
+        app: semantic-search
+    spec:
+      containers:
+        - name: semantic-search
+          image: xirify/semantic-search:latest
+          ports:
+            - containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: semantic-search-config
+            - secretRef:
+                name: semantic-search-secrets
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: semantic-search-config
+  namespace: xirify-dev-ns
+data:
+  MONGODB_DB: "dev"
+  REDIS_HOST: "redis.xirify-dev-ns.svc.cluster.local"
+  REDIS_PORT: "6379"
+  QDRANT_HOST: "qdrant-service.xirify-dev-ns.svc.cluster.local"
+  QDRANT_PORT: "6333"
+  OUTBOX_POLL_INTERVAL: "5"
+  EMBEDDING_BATCH_SIZE: "96"
+  LOG_LEVEL: "INFO"
+  SERVICE_PORT: "8001"

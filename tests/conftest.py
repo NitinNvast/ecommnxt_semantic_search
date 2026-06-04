@@ -1,0 +1,10 @@
+import os
+os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017/test")
+os.environ.setdefault("MONGODB_DB", "test")
+os.environ.setdefault("REDIS_HOST", "localhost")
+os.environ.setdefault("REDIS_PORT", "6379")
+os.environ.setdefault("QDRANT_HOST", "localhost")
+os.environ.setdefault("QDRANT_PORT", "6333")
+os.environ.setdefault("OPENAI_API_KEY", "sk-test")
+os.environ.setdefault("JWT_SECRET", "test-secret")
+os.environ.setdefault("INTERNAL_API_KEY", "test-internal-key")

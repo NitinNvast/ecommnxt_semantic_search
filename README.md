@@ -414,3 +414,4 @@ redis-cli ping            # should return PONG
 **Text-search results missing** — ensure a MongoDB `$text` index exists on the `businesses` and `services` collections; without it the `$text` queries fail and only vector results contribute.
 
 **Outbox not processing** — set `LOG_LEVEL=DEBUG` and look for scheduler logs on startup. Check `/health` for `queueDepth` and `deadLetterCount`; events with `status: DEAD` have exhausted their 5 retries.
+# ecommnxt_semantic_search

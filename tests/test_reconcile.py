@@ -9,7 +9,7 @@ def mocks(mocker):
     mongo.get_all_entity_ids = AsyncMock(return_value=["A", "B"])
     qdrant = MagicMock()
     # Qdrant has B and C (so A is missing, C is orphaned)
-    qdrant.scroll_all_mongo_ids = AsyncMock(return_value={"B": "uuid-b", "C": "uuid-c"})
+    qdrant.scroll_all_object_ids = AsyncMock(return_value={"B": "uuid-b", "C": "uuid-c"})
     qdrant.delete_point = AsyncMock()
     handle = AsyncMock()
     mocker.patch("app.worker.reconcile.mongo_db", mongo)

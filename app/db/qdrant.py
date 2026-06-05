@@ -135,13 +135,14 @@ async def search_vectors(
     limit: int = 40,
 ) -> List[Any]:
     collection = COLLECTIONS[entity_type]
-    return await get_client().search(
+    response = await get_client().query_points(
         collection_name=collection,
-        query_vector=vector,
+        query=vector,
         query_filter=Filter(must=must_conditions),
         limit=limit,
         with_payload=True,
     )
+    return response.points
 
 
 async def get_point(entity_type: str, point_id: str) -> Optional[Any]:
@@ -154,8 +155,21 @@ async def get_point(entity_type: str, point_id: str) -> Optional[Any]:
     return results[0] if results else None
 
 
-async def scroll_all_mongo_ids(entity_type: str, batch: int = 1000) -> Dict[str, str]:
-    """Return {mongoId: point_id} for every point in the collection (for reconcile)."""
+async def bulk_upsert_points(
+    entity_type: str,
+    points: list,
+) -> None:
+    """Upsert a batch of (entity_id, vector, payload) tuples in one call."""
+    collection = COLLECTIONS[entity_type]
+    structs = [
+        PointStruct(id=to_point_id(eid), vector=vec, payload=payload)
+        for eid, vec, payload in points
+    ]
+    await get_client().upsert(collection_name=collection, points=structs)
+
+
+async def scroll_all_object_ids(entity_type: str, batch: int = 1000) -> Dict[str, str]:
+    """Return {objectId: point_id} for every point in the collection (for reconcile)."""
     collection = COLLECTIONS[entity_type]
     client = get_client()
     result: Dict[str, str] = {}
@@ -169,9 +183,9 @@ async def scroll_all_mongo_ids(entity_type: str, batch: int = 1000) -> Dict[str,
             with_vectors=False,
         )
         for p in points:
-            mongo_id = (p.payload or {}).get("mongoId")
-            if mongo_id:
-                result[str(mongo_id)] = str(p.id)
+            object_id = (p.payload or {}).get("mongoId")
+            if object_id:
+                result[str(object_id)] = str(p.id)
         if offset is None:
             break
     return result

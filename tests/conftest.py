@@ -1,6 +1,6 @@
 import os
-os.environ.setdefault("MONGODB_URL", "mongodb://localhost:27017/test")
-os.environ.setdefault("MONGODB_DB", "test")
+os.environ.setdefault("NODE_API_URL", "http://localhost:3000")
+os.environ.setdefault("NODE_SERVICE_TOKEN", "test-service-token")
 os.environ.setdefault("REDIS_HOST", "localhost")
 os.environ.setdefault("REDIS_PORT", "6379")
 os.environ.setdefault("QDRANT_HOST", "localhost")

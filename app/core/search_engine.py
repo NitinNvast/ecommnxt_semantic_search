@@ -129,7 +129,7 @@ def _to_search_result(
 async def search(request: SearchRequest) -> SearchResponse:
     from app.core.embedder import embed_query
     from app.core.reranker import compute_final_scores, rrf_fuse
-    from app.db import mongo as mongo_db
+    from app.db import node_api as mongo_db
     from app.db import qdrant as qdrant_db
 
     t0 = time.monotonic()

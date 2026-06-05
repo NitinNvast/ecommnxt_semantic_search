@@ -1,11 +1,10 @@
 import uuid
 from datetime import datetime, timezone
 from typing import Literal
-from bson import ObjectId
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from app.config import settings
 from app.core.embedder import SEMANTIC_FIELDS
-from app.db import mongo as mongo_db
+from app.db import node_api
 from app.db import qdrant as qdrant_db
 from app.models.search import EmbeddingStatusResponse, JobResponse, ReindexRequest
 from app.worker.outbox_processor import handle_create_update
@@ -55,10 +54,9 @@ async def reindex_business_services(
     _key: None = Depends(_require_internal_key),
 ) -> JobResponse:
     async def _fanout():
-        db = mongo_db.get_db()
-        cursor = db["services"].find({"businessId": ObjectId(business_id)}, {"_id": 1})
-        async for svc in cursor:
-            await _enqueue_single_reindex("service", str(svc["_id"]))
+        service_ids = await node_api.get_all_entity_ids("services", business_id=business_id)
+        for svc_id in service_ids:
+            await _enqueue_single_reindex("service", svc_id)
 
     background_tasks.add_task(_fanout)
     return JobResponse(
@@ -74,11 +72,10 @@ async def bulk_reindex(
     _key: None = Depends(_require_internal_key),
 ) -> JobResponse:
     async def _bulk():
-        db = mongo_db.get_db()
         collection_map = {"business": "businesses", "service": "services"}
-        cursor = db[collection_map[request.entity]].find(request.filter or {}, {"_id": 1})
-        async for doc in cursor:
-            await _enqueue_single_reindex(request.entity, str(doc["_id"]))
+        ids = await node_api.get_all_entity_ids(collection_map[request.entity])
+        for eid in ids:
+            await _enqueue_single_reindex(request.entity, eid)
 
     background_tasks.add_task(_bulk)
     return JobResponse(

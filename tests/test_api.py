@@ -20,17 +20,16 @@ async def client():
 class TestHealth:
     async def test_health_returns_200(self, client):
         with (
-            patch("app.db.mongo.ping", AsyncMock(return_value=True)),
+            patch("app.db.node_api.ping", AsyncMock(return_value=True)),
+            patch("app.db.node_api.outbox_stats", AsyncMock(return_value={"queueDepth": 0, "deadLettered": 0})),
             patch("app.db.qdrant.ping", AsyncMock(return_value=True)),
             patch("app.db.redis.ping", AsyncMock(return_value=True)),
-            patch("app.db.mongo.get_db") as mock_db,
         ):
-            mock_db.return_value.__getitem__.return_value.count_documents = AsyncMock(return_value=0)
             response = await client.get("/health")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
-        assert "mongo" in data
+        assert "nodeApi" in data
         assert "qdrant" in data
         assert "redis" in data
 

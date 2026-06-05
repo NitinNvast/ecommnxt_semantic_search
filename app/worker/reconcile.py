@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from typing import Dict, List
 
-from app.db import mongo as mongo_db
+from app.db import node_api as mongo_db
 from app.db import qdrant as qdrant_db
 from app.worker.outbox_processor import ENTITY_COLLECTION_MAP, handle_create_update
 
@@ -21,7 +21,7 @@ async def reconcile_entity(entity_type: str) -> Dict:
             collection, exclude_addons=(entity_type == "service")
         )
     )
-    qdrant_map = await qdrant_db.scroll_all_mongo_ids(entity_type)
+    qdrant_map = await qdrant_db.scroll_all_object_ids(entity_type)
     qdrant_ids = set(qdrant_map.keys())
 
     missing = mongo_ids - qdrant_ids

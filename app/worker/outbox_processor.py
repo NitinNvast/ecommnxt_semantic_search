@@ -10,7 +10,7 @@ from app.core.embedder import (
     is_semantic_field_changed,
     source_hash,
 )
-from app.db import mongo as mongo_db
+from app.db import node_api as mongo_db
 from app.db import qdrant as qdrant_db
 from qdrant_client.models import FieldCondition, MatchValue
 

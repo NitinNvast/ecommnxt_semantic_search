@@ -17,7 +17,7 @@ class SearchFilters(BaseModel):
 
 class SearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=500)
-    entities: List[Literal["business", "service"]] = ["business", "service"]
+    entities: List[Literal["service"]] = ["service"]
     geo: Optional[GeoFilter] = None
     filters: Optional[SearchFilters] = None
     page: int = Field(default=1, ge=1)
@@ -62,7 +62,7 @@ class EmbeddingStatusResponse(BaseModel):
 
 
 class ReindexRequest(BaseModel):
-    entity: Literal["business", "service"]
+    entity: Literal["service"]
     filter: Dict[str, Any] = {}
     reason: str = ""
 

@@ -17,7 +17,6 @@ from qdrant_client.models import (
 from app.config import settings
 
 COLLECTIONS = {
-    "business": "business_vectors",
     "service": "service_vectors",
 }
 
@@ -135,14 +134,26 @@ async def search_vectors(
     limit: int = 40,
 ) -> List[Any]:
     collection = COLLECTIONS[entity_type]
-    response = await get_client().query_points(
-        collection_name=collection,
-        query=vector,
-        query_filter=Filter(must=must_conditions),
-        limit=limit,
-        with_payload=True,
-    )
-    return response.points
+    try:
+        return await get_client().search(
+            collection_name=collection,
+            query_vector=vector,
+            query_filter=Filter(must=must_conditions),
+            limit=limit,
+            with_payload=True,
+        )
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "404" in msg or "not found" in msg or "doesn't exist" in msg:
+            await ensure_collections()
+            return await get_client().search(
+                collection_name=collection,
+                query_vector=vector,
+                query_filter=Filter(must=must_conditions),
+                limit=limit,
+                with_payload=True,
+            )
+        raise
 
 
 async def get_point(entity_type: str, point_id: str) -> Optional[Any]:

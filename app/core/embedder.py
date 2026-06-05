@@ -7,13 +7,9 @@ from app.config import settings
 from app.db import redis as redis_db
 
 SEMANTIC_FIELDS: Dict[str, frozenset] = {
-    "business": frozenset([
-        "businessName", "description", "amenities",
-        "category", "subCategories", "brandIds",
-    ]),
     "service": frozenset([
         "service", "description", "productDetailDescription",
-        "brand", "countryOfOrigin", "subcategory",
+        "subcategory",
     ]),
 }
 
@@ -38,21 +34,6 @@ def _clean(text: object, max_chars: int = 1000) -> str:
     return s[:max_chars]
 
 
-def build_business_text(entity: dict, resolved: Optional[dict] = None) -> str:
-    r = resolved or {}
-    parts = [
-        _clean(entity.get("businessName")),
-        " ".join(filter(None, [
-            r.get("category_name", ""),
-            " ".join(r.get("subcategory_names", [])),
-        ])),
-        " ".join(filter(None, r.get("brand_names", []))),
-        _clean(entity.get("description")),
-        _clean(entity.get("amenities")),
-    ]
-    return "\n".join(p for p in parts if p)
-
-
 def build_service_text(entity: dict, resolved: Optional[dict] = None) -> str:
     r = resolved or {}
     detail_parts: List[str] = []
@@ -73,8 +54,6 @@ def build_service_text(entity: dict, resolved: Optional[dict] = None) -> str:
 
 
 def build_source_text(entity_type: str, entity: dict, resolved: Optional[dict] = None) -> str:
-    if entity_type == "business":
-        return build_business_text(entity, resolved)
     if entity_type == "service":
         return build_service_text(entity, resolved)
     raise ValueError(f"Unknown entity_type: {entity_type}")

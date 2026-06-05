@@ -59,7 +59,7 @@ async def reconcile_entity(entity_type: str) -> Dict:
 
 async def reconcile_all() -> List[Dict]:
     results = []
-    for entity_type in ("business", "service"):
+    for entity_type in ("service",):
         try:
             results.append(await reconcile_entity(entity_type))
         except Exception as exc:

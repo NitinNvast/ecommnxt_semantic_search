@@ -103,10 +103,7 @@ async def get_all_entity_ids(
     if business_id:
         params["businessId"] = business_id
 
-    if collection == "services":
-        url = f"{_base()}/api/semantic/internal/services/ids"
-    else:
-        url = f"{_base()}/api/semantic/internal/businesses/ids"
+    url = f"{_base()}/api/semantic/internal/services/ids"
 
     async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
         r = await client.get(url, params=params, headers=_headers())
@@ -142,10 +139,6 @@ async def get_taxonomy_names(collection: str, ids: List[str]) -> Dict[str, str]:
         )
         r.raise_for_status()
         return r.json()
-
-
-async def text_search_businesses(query: str, limit: int = 40) -> List[Dict]:
-    return []
 
 
 async def text_search_services(query: str, limit: int = 40) -> List[Dict]:

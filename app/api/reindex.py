@@ -35,7 +35,7 @@ async def _enqueue_single_reindex(entity_type: str, entity_id: str) -> str:
 
 @router.post("/reindex/{entity_type}/{entity_id}", response_model=JobResponse)
 async def reindex_single(
-    entity_type: Literal["business", "service"],
+    entity_type: Literal["service"],
     entity_id: str,
     background_tasks: BackgroundTasks,
     _key: None = Depends(_require_internal_key),
@@ -72,10 +72,9 @@ async def bulk_reindex(
     _key: None = Depends(_require_internal_key),
 ) -> JobResponse:
     async def _bulk():
-        collection_map = {"business": "businesses", "service": "services"}
-        ids = await node_api.get_all_entity_ids(collection_map[request.entity])
+        ids = await node_api.get_all_entity_ids("services")
         for eid in ids:
-            await _enqueue_single_reindex(request.entity, eid)
+            await _enqueue_single_reindex("service", eid)
 
     background_tasks.add_task(_bulk)
     return JobResponse(
@@ -86,7 +85,7 @@ async def bulk_reindex(
 
 @router.get("/embedding-status/{entity_type}/{entity_id}", response_model=EmbeddingStatusResponse)
 async def embedding_status(
-    entity_type: Literal["business", "service"],
+    entity_type: Literal["service"],
     entity_id: str,
     _key: None = Depends(_require_internal_key),
 ) -> EmbeddingStatusResponse:

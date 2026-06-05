@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class OutboxEvent(BaseModel):
     id: str = Field(alias="_id")
-    entityType: Literal["business", "service"]
+    entityType: Literal["service"]
     entityId: str
     operation: Literal["CREATE", "UPDATE", "DELETE"]
     changedFields: List[str] = []

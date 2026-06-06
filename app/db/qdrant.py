@@ -6,9 +6,6 @@ from qdrant_client.models import (
     Distance,
     FieldCondition,
     Filter,
-    GeoPoint,
-    GeoRadius,
-    MatchValue,
     PayloadSchemaType,
     PointIdsList,
     PointStruct,
@@ -63,12 +60,8 @@ async def ensure_collections() -> None:
             vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
         )
         for field, schema in [
-            ("businessId", PayloadSchemaType.KEYWORD),
-            ("businessStatus", PayloadSchemaType.KEYWORD),
-            ("isAvailable", PayloadSchemaType.BOOL),
-            ("isEnabled", PayloadSchemaType.BOOL),
-            ("isDisplay", PayloadSchemaType.BOOL),
-            ("location", PayloadSchemaType.GEO),
+            ("mongoId", PayloadSchemaType.KEYWORD),
+            ("serviceId", PayloadSchemaType.KEYWORD),
         ]:
             try:
                 await client.create_payload_index(
@@ -132,6 +125,7 @@ async def search_vectors(
     vector: List[float],
     must_conditions: List[FieldCondition],
     limit: int = 40,
+    score_threshold: float = 0.3,
 ) -> List[Any]:
     collection = COLLECTIONS[entity_type]
     try:
@@ -140,6 +134,7 @@ async def search_vectors(
             query_vector=vector,
             query_filter=Filter(must=must_conditions),
             limit=limit,
+            score_threshold=score_threshold,
             with_payload=True,
         )
     except Exception as exc:
@@ -151,6 +146,7 @@ async def search_vectors(
                 query_vector=vector,
                 query_filter=Filter(must=must_conditions),
                 limit=limit,
+                score_threshold=score_threshold,
                 with_payload=True,
             )
         raise
@@ -200,13 +196,3 @@ async def scroll_all_object_ids(entity_type: str, batch: int = 1000) -> Dict[str
         if offset is None:
             break
     return result
-
-
-def build_geo_condition(lat: float, lng: float, radius_km: float) -> FieldCondition:
-    return FieldCondition(
-        key="location",
-        geo_radius=GeoRadius(
-            center=GeoPoint(lat=lat, lon=lng),
-            radius=radius_km * 1000,
-        ),
-    )

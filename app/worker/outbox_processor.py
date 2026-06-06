@@ -32,25 +32,11 @@ def _should_skip_service(entity: dict) -> bool:
 
 
 def _build_service_payload(entity: dict, business: Optional[dict] = None) -> dict:
-    geo = None
-    if business:
-        loc = (business.get("address") or {}).get("location") or {}
-        coords = loc.get("coordinates") or []
-        if len(coords) == 2:
-            geo = {"lon": float(coords[0]), "lat": float(coords[1])}
     return {
         "entity_type": "service",
         "mongoId": str(entity.get("_id", "")),
-        "businessId": str(entity.get("businessId", "")),
-        "location": geo,
-        "subcategory": str(entity.get("subcategory") or ""),
+        "serviceId": str(entity.get("serviceId", "")),
         "fixedCost": (entity.get("cost") or {}).get("fixedCost"),
-        "brand": str(entity.get("brand") or ""),
-        "isEnabled": bool(entity.get("isEnabled", True)),
-        "isDisplay": bool(entity.get("isDisplay", True)),
-        "bestSeller": bool(entity.get("bestSeller")),
-        "newArrival": bool(entity.get("newArrival")),
-        "mustTry": bool(entity.get("mustTry")),
     }
 
 

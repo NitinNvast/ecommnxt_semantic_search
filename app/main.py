@@ -7,11 +7,15 @@ from app.worker.scheduler import start_scheduler, stop_scheduler
 from app.api import health, search, reindex
 
 logging.basicConfig(level=settings.LOG_LEVEL)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await qdrant_db.ensure_collections()
+    try:
+        await qdrant_db.ensure_collections()
+    except Exception as exc:
+        logger.warning("Qdrant unavailable at startup — collections will be created on first use: %s", exc)
     start_scheduler()
     yield
     stop_scheduler()

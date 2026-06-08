@@ -1,26 +1,26 @@
 # Xirify Semantic Search
 
-A FastAPI microservice that provides **hybrid semantic search** over businesses and services. It combines OpenAI vector embeddings (via Qdrant) with MongoDB full-text search, fuses the two result sets with Reciprocal Rank Fusion (RRF), then reranks by geographic proximity and quality signals.
+A FastAPI microservice that provides **hybrid semantic search** over services. It combines OpenAI vector embeddings (via Qdrant) with Node.js API full-text search, fuses the two result sets with Reciprocal Rank Fusion (RRF), then reranks by geographic proximity and quality signals.
 
 ## Architecture Overview
 
 ```
-Client → FastAPI (port 8001)
+Client → FastAPI (port 8005)
            ├── /search          → Search Engine ─┬─ Qdrant (vector search)
-           │                                     ├─ MongoDB ($text search)
+           │                                     ├─ Node.js API (text search)
            │                                     ├─ RRF fusion + rerank
            │                                     └─ Redis (query-embedding cache)
-           ├── /health          → MongoDB + Qdrant + Redis + outbox depth
+           ├── /health          → Node.js API + Qdrant + Redis + outbox depth
            └── /internal/*       → Reindex & embedding-status APIs
 
 Background Worker (APScheduler)
   ├── poll_outbox     (every OUTBOX_POLL_INTERVAL s)
-  │     └── MongoDB embeddingOutbox → OpenAI Embeddings → Qdrant
+  │     └── Node.js embeddingOutbox → OpenAI Embeddings → Qdrant
   └── reconcile_all   (daily at RECONCILE_HOUR:00)
-        └── diff Mongo _ids vs Qdrant points → repair missing / delete orphans
+        └── diff Node.js IDs vs Qdrant points → repair missing / delete orphans
 ```
 
-**Tech stack:** FastAPI · Uvicorn · MongoDB (Motor) · Qdrant · Redis · OpenAI API · APScheduler · python-jose (JWT)
+**Tech stack:** FastAPI · Uvicorn · Node.js API (HTTP) · Qdrant · Redis · OpenAI API · APScheduler · python-jose (JWT)
 
 ---
 
@@ -29,12 +29,10 @@ Background Worker (APScheduler)
 | Requirement | Version | Notes |
 |-------------|---------|-------|
 | Python | 3.11+ | |
-| MongoDB | 6.x | Remote dev instance available (see `.env.example`) |
+| Node.js backend | — | Provides entity data and outbox via HTTP |
 | Qdrant | 1.9+ | Run locally via Docker |
 | Redis | 7.x | Run locally via Docker |
 | OpenAI API key | — | `text-embedding-3-small` model |
-
-> **Note:** Hybrid search relies on MongoDB **text indexes** on the `businesses` and `services` collections. The `$text` queries (`text_search_businesses` / `text_search_services`) require a text index to exist on the searchable fields; without one, MongoDB returns an error and only the vector half of the search contributes.
 
 ---
 
@@ -43,7 +41,7 @@ Background Worker (APScheduler)
 ### 1. Clone & navigate
 
 ```bash
-cd semantic-search
+cd ecommnxt_semantic_search
 ```
 
 ### 2. Create a virtual environment
@@ -80,9 +78,9 @@ cp .env.example .env
 Edit `.env` and fill in the required values:
 
 ```env
-# MongoDB — use shared dev instance or point to your own
-MONGODB_URL=mongodb://devuser:password@<host>:27018/dev
-MONGODB_DB=dev
+# Node.js backend
+NODE_API_URL=http://localhost:8000
+NODE_SERVICE_TOKEN=your-service-token-here
 
 # Redis
 REDIS_HOST=localhost
@@ -95,7 +93,7 @@ QDRANT_PORT=6333
 # OpenAI — required for generating embeddings
 OPENAI_API_KEY=sk-...
 
-# Auth — must match values used by the Node.js backend
+# Auth
 JWT_SECRET=your-jwt-secret-here
 INTERNAL_API_KEY=internal-secret-here
 
@@ -104,13 +102,13 @@ OUTBOX_POLL_INTERVAL=5       # seconds between outbox polls
 RECONCILE_HOUR=3             # hour-of-day (server TZ) for the nightly reconcile job
 EMBEDDING_BATCH_SIZE=96      # max embeddings per batch
 LOG_LEVEL=INFO
-SERVICE_PORT=8001
+SERVICE_PORT=8005
 ```
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MONGODB_URL` | _(required)_ | MongoDB connection string |
-| `MONGODB_DB` | `dev` | Database name |
+| `NODE_API_URL` | _(required)_ | Base URL of the Node.js backend |
+| `NODE_SERVICE_TOKEN` | _(required)_ | Service token for Node.js API calls |
 | `REDIS_HOST` / `REDIS_PORT` | `localhost` / `6379` | Redis connection |
 | `QDRANT_HOST` / `QDRANT_PORT` | `localhost` / `6333` | Qdrant connection |
 | `OPENAI_API_KEY` | _(required)_ | OpenAI key for embeddings |
@@ -120,7 +118,7 @@ SERVICE_PORT=8001
 | `RECONCILE_HOUR` | `3` | Hour (0–23, server TZ) to run the nightly reconcile |
 | `EMBEDDING_BATCH_SIZE` | `96` | Max embeddings per OpenAI batch |
 | `LOG_LEVEL` | `INFO` | Python log level |
-| `SERVICE_PORT` | `8001` | Service port (informational) |
+| `SERVICE_PORT` | `8005` | Service port (informational) |
 
 ---
 
@@ -129,17 +127,18 @@ SERVICE_PORT=8001
 ### Development (with auto-reload)
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8005 --reload
 ```
 
-The API will be available at `http://localhost:8001`.
+The API will be available at `http://localhost:8005`.
 
-Interactive docs: `http://localhost:8001/docs`
+Interactive docs: `http://localhost:8005/docs`
 
 ### Production (no reload)
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8001
+
+
 ```
 
 ### Via Docker
@@ -149,7 +148,7 @@ uvicorn app.main:app --host 0.0.0.0 --port 8001
 docker build -t xirify/semantic-search .
 
 # Run container
-docker run -p 8001:8001 --env-file .env xirify/semantic-search
+docker run -p 8005:8005 --env-file .env xirify/semantic-search
 ```
 
 ---
@@ -158,14 +157,12 @@ docker run -p 8001:8001 --env-file .env xirify/semantic-search
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/health` | None | Health check (MongoDB, Qdrant, Redis, outbox queue depth, dead-letter count) |
-| `POST` | `/search` | JWT Bearer | Hybrid semantic search for businesses & services |
-| `POST` | `/internal/reindex/{entity_type}/{entity_id}` | X-Internal-Key | Reindex a single entity |
+| `GET` | `/health` | None | Health check (Node.js API, Qdrant, Redis, outbox queue depth, dead-letter count) |
+| `POST` | `/search` | JWT Bearer | Hybrid semantic search for services |
+| `POST` | `/internal/reindex/service/{entity_id}` | X-Internal-Key | Reindex a single service |
 | `POST` | `/internal/reindex/business/{business_id}/services` | X-Internal-Key | Fan-out reindex of all services for a business |
-| `POST` | `/internal/bulk-reindex` | X-Internal-Key | Bulk reindex with a Mongo filter |
-| `GET` | `/internal/embedding-status/{entity_type}/{entity_id}` | X-Internal-Key | Check a vector's sync status in Qdrant |
-
-`{entity_type}` is one of `business` or `service`.
+| `POST` | `/internal/bulk-reindex` | X-Internal-Key | Bulk reindex all services |
+| `GET` | `/internal/embedding-status/service/{entity_id}` | X-Internal-Key | Check a vector's sync status in Qdrant |
 
 ### Auth headers
 
@@ -180,13 +177,13 @@ X-Internal-Key: <value-of-INTERNAL_API_KEY>
 ### Example: health check
 
 ```bash
-curl http://localhost:8001/health
+curl http://localhost:8005/health
 ```
 
 ```json
 {
   "status": "ok",
-  "mongo": "ok",
+  "nodeApi": "ok",
   "qdrant": "ok",
   "redis": "ok",
   "queueDepth": 0,
@@ -196,17 +193,12 @@ curl http://localhost:8001/health
 
 ### Example: semantic search
 
-The request body is structured — geo and filters are **nested objects**, not flat fields:
-
 ```bash
-curl -X POST http://localhost:8001/search \
+curl -X POST http://localhost:8005/search \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "best pizza near me",
-    "entities": ["business", "service"],
-    "geo": { "lat": 18.5204, "lng": 73.8567, "radiusKm": 5 },
-    "filters": { "category": "<categoryId>" },
     "page": 1,
     "limit": 10
   }'
@@ -217,9 +209,7 @@ curl -X POST http://localhost:8001/search \
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
 | `query` | string | _(required)_ | 1–500 chars |
-| `entities` | `["business","service"]` | both | Which collections to search |
-| `geo` | `{lat, lng, radiusKm}` | none | `radiusKm` defaults to 5; omit to skip geo filtering |
-| `filters` | object | none | `category` is applied as a Qdrant filter |
+| `entities` | `["service"]` | `["service"]` | Entity types to search |
 | `page` | int ≥ 1 | 1 | |
 | `limit` | int 1–100 | 20 | Page size |
 
@@ -229,21 +219,13 @@ curl -X POST http://localhost:8001/search \
 {
   "results": [
     {
-      "entityType": "business",
+      "entityType": "service",
       "id": "<mongoId>",
-      "score": 0.8123,
-      "distanceKm": 1.24,
-      "business": { "id": "...", "name": "...", "rating": 4.5, "xirifyAssured": true },
-      "highlight": { "name": "...", "price": null, "description": "..." }
+      "serviceId": "<serviceId>"
     }
-  ],
-  "fallbackUsed": false,
-  "total": 12,
-  "tookMs": 87
+  ]
 }
 ```
-
-`fallbackUsed` is `true` when no result cleared the relevance threshold and the engine returned the top matches anyway.
 
 ---
 
@@ -251,16 +233,15 @@ curl -X POST http://localhost:8001/search \
 
 1. **Normalize** the query — lowercase, collapse whitespace, and expand a small set of Hinglish synonyms (e.g. `chemist → pharmacy medicine`, `thali → meal platter set`).
 2. **Embed** the normalized query with `text-embedding-3-small`. The query vector is cached in Redis (key `emb:<sha256>`, 7-day TTL) so repeat queries skip the OpenAI call.
-3. For each entity type, run **two searches in parallel**:
-   - **Vector search** in Qdrant (top 40), filtered to `APPROVED` + available entities, optional geo-radius, and optional category.
-   - **Full-text search** in MongoDB via `$text` (top 40).
+3. Run **two searches**:
+   - **Vector search** in Qdrant (top 40, score threshold 0.3).
+   - **Full-text search** via Node.js API (top 40).
 4. **Fuse** the two lists with Reciprocal Rank Fusion (RRF, `k=60`), keyed on the Mongo `_id` carried in each Qdrant payload.
 5. **Rerank** with a weighted score:
    `0.4·vector + 0.3·rrf + 0.2·proximity + 0.1·quality`
-   - **proximity** — exponential distance decay (2 km half-life) using the Haversine distance to the consumer.
+   - **proximity** — exponential distance decay (2 km half-life).
    - **quality** — boosts for `xirifyAssured`, `topRated`, `popular`, `isnew`, and `overallRating`.
-6. Drop results below the score threshold (`0.05`); if none survive, fall back to the top 20 and flag `fallbackUsed`.
-7. **Hydrate** surviving ids from MongoDB (and parent businesses for service results), merge both entity types, sort by score, and paginate.
+6. **Paginate** and return results.
 
 ---
 
@@ -272,14 +253,13 @@ On startup, APScheduler registers two jobs.
 
 Runs every `OUTBOX_POLL_INTERVAL` seconds (default 5s):
 
-1. Queries `embeddingOutbox` for `PENDING` **and** `FAILED` events (oldest first, batch of 50). Re-polling `FAILED` lets transient OpenAI/Qdrant blips recover instead of stranding the event.
-2. Fetches entity data from MongoDB (`businesses` or `services`), resolving taxonomy names (categories/brands) for businesses and the parent business (for geo) for services.
+1. Claims `PENDING` events from the Node.js outbox (batch of 50).
+2. Fetches service entity data from the Node.js API.
 3. Skips add-on and non-default-variation services.
 4. Builds the source text and its SHA-256 hash:
    - **Hash unchanged** → payload-only update in Qdrant (no re-embedding, no OpenAI cost).
    - **Hash changed** → generate a new embedding via OpenAI and upsert the vector + payload into Qdrant.
-5. When a business `address` changes, fans the new geo out to all of its service vectors.
-6. Marks the event `DONE`, or `FAILED`/`DEAD` on error — events are dead-lettered (`DEAD`) once `retryCount` reaches 5.
+5. Acknowledges `DONE` or marks `FAILED` on error.
 
 `DELETE` operations remove the corresponding Qdrant point.
 
@@ -287,11 +267,11 @@ Runs every `OUTBOX_POLL_INTERVAL` seconds (default 5s):
 
 ### 2. Reconcile (`reconcile_all`)
 
-Runs daily at `RECONCILE_HOUR:00` (server TZ, default 03:00) as an eventual-consistency safety net for dropped outbox events or writes that bypassed the Mongoose hooks:
+Runs daily at `RECONCILE_HOUR:00` (server TZ, default 03:00) as an eventual-consistency safety net for dropped outbox events:
 
-- For `business` and `service`, it diffs live Mongo `_id`s against the Qdrant points.
+- Diffs live Node.js service IDs against Qdrant points.
 - **Missing** entities are re-embedded and upserted.
-- **Orphaned** points (in Qdrant but no longer in Mongo) are deleted.
+- **Orphaned** points (in Qdrant but no longer in Node.js) are deleted.
 
 ---
 
@@ -303,15 +283,9 @@ pytest
 
 # With verbose output
 pytest -v
-
-# Run a specific test file
-pytest tests/test_search_engine.py -v
-
-# Run a specific test
-pytest tests/test_reranker.py -v
 ```
 
-Tests use mocked versions of MongoDB, Qdrant, Redis, and OpenAI — no live services needed. `pytest.ini` enables `asyncio_mode = auto`.
+Tests use mocked versions of Node.js API, Qdrant, Redis, and OpenAI — no live services needed. `pytest.ini` enables `asyncio_mode = auto`.
 
 Test suite:
 
@@ -332,7 +306,7 @@ tests/
 ## Project Structure
 
 ```
-semantic-search/
+ecommnxt_semantic_search/
 ├── app/
 │   ├── main.py              # FastAPI app, lifespan hooks, router wiring
 │   ├── config.py            # Pydantic settings (reads .env)
@@ -345,8 +319,8 @@ semantic-search/
 │   │   ├── search_engine.py # Query normalization + hybrid search orchestration
 │   │   └── reranker.py      # RRF fusion + proximity + quality scoring
 │   ├── db/
-│   │   ├── mongo.py         # Async MongoDB (Motor): outbox, text search, hydration
-│   │   ├── qdrant.py        # Qdrant client, collections, geo filter, reconcile scroll
+│   │   ├── node_api.py      # HTTP client to Node.js backend (entities, outbox)
+│   │   ├── qdrant.py        # Qdrant client, collections, reconcile scroll
 │   │   └── redis.py         # Async Redis client (query-embedding cache)
 │   ├── models/
 │   │   ├── search.py        # Request/response schemas
@@ -354,7 +328,8 @@ semantic-search/
 │   │   └── vectors.py       # Qdrant payload schemas
 │   └── worker/
 │       ├── outbox_processor.py  # Embedding pipeline logic
-│       ├── reconcile.py         # Nightly Mongo↔Qdrant reconciliation
+│       ├── backfill.py          # Day-zero batch embedding
+│       ├── reconcile.py         # Nightly Node.js↔Qdrant reconciliation
 │       └── scheduler.py         # APScheduler setup (both jobs)
 ├── tests/                   # pytest test suite (fully mocked)
 ├── docs/                    # Postman collection
@@ -382,12 +357,11 @@ kubectl apply -f k8s/service.yaml
 
 ## Qdrant Collections
 
-The app auto-creates these collections on startup if they don't exist, along with payload indexes on `businessId`, `businessStatus`, `isAvailable`, `isEnabled`, `isDisplay`, and `location` (geo):
+The app auto-creates the collection on startup if it doesn't exist, along with payload indexes on `mongoId` and `serviceId`:
 
 | Collection | Dimensions | Distance | Entities |
 |------------|-----------|----------|---------|
-| `business_vectors` | 1536 | Cosine | Businesses |
-| `service_vectors` | 1536 | Cosine | Services/products |
+| `service_vectors` | 1536 | Cosine | Services |
 
 Vector model: `text-embedding-3-small` (OpenAI, 1536-dim). Embedding version tag: `v1-te3s`.
 
@@ -411,7 +385,6 @@ redis-cli ping            # should return PONG
 
 **OpenAI quota / key errors** — check `OPENAI_API_KEY` in `.env` and your API quota.
 
-**Text-search results missing** — ensure a MongoDB `$text` index exists on the `businesses` and `services` collections; without it the `$text` queries fail and only vector results contribute.
+**Node.js API unreachable** — check `NODE_API_URL` and `NODE_SERVICE_TOKEN` in `.env`. The `/health` endpoint shows `nodeApi: error` when the upstream is down.
 
-**Outbox not processing** — set `LOG_LEVEL=DEBUG` and look for scheduler logs on startup. Check `/health` for `queueDepth` and `deadLetterCount`; events with `status: DEAD` have exhausted their 5 retries.
-# ecommnxt_semantic_search
+**Outbox not processing** — set `LOG_LEVEL=DEBUG` and look for scheduler logs on startup. Check `/health` for `queueDepth` and `deadLetterCount`.

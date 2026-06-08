@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     RECONCILE_HOUR: int = 3  # hour-of-day (server TZ) for the nightly reconcile job
     EMBEDDING_BATCH_SIZE: int = 96
     LOG_LEVEL: str = "INFO"
-    SERVICE_PORT: int = 8001
+    SERVICE_PORT: int = 8005
 
     class Config:
         env_file = ".env"

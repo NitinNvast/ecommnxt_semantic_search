@@ -2,11 +2,11 @@
   "info": {
     "name": "Xirify Semantic Search",
     "_postman_id": "xirify-semantic-search-v1",
-    "description": "Full API collection for the Xirify Semantic Search microservice (FastAPI, port 8001).\n\n**Variables (set in collection or environment):**\n- `base_url` — e.g. `http://localhost:8001`\n- `jwt_token` — HS256 JWT signed with `JWT_SECRET`\n- `internal_api_key` — value of `INTERNAL_API_KEY` in .env",
+    "description": "Full API collection for the Xirify Semantic Search microservice (FastAPI, port 8005).\n\n**Variables (set in collection or environment):**\n- `base_url` — e.g. `http://localhost:8005`\n- `jwt_token` — HS256 JWT signed with `JWT_SECRET`\n- `internal_api_key` — value of `INTERNAL_API_KEY` in .env",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "base_url",         "value": "http://localhost:8001", "type": "string" },
+    { "key": "base_url",         "value": "http://localhost:8005", "type": "string" },
     { "key": "jwt_token",        "value": "YOUR_JWT_TOKEN_HERE",  "type": "string" },
     { "key": "internal_api_key", "value": "internal-secret-here", "type": "string" }
   ],

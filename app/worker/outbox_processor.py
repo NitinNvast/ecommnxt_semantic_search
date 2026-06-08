@@ -31,6 +31,17 @@ def _should_skip_service(entity: dict) -> bool:
     return False
 
 
+async def _resolve_taxonomy(entity_type: str, entity: dict) -> dict:
+    """Extract names from pre-populated reference fields returned by getService."""
+    if entity_type != "service":
+        return {}
+    resolved = {}
+    subcategory = entity.get("subcategory")
+    if isinstance(subcategory, dict):
+        resolved["category_name"] = subcategory.get("name", "")
+    return resolved
+
+
 def _build_service_payload(entity: dict, business: Optional[dict] = None) -> dict:
     return {
         "entity_type": "service",
@@ -65,7 +76,8 @@ async def handle_create_update(event: dict) -> None:
     if business_id:
         business = await mongo_db.get_business(business_id)
 
-    source_text = build_source_text("service", entity)
+    resolved = await _resolve_taxonomy(entity_type, entity)
+    source_text = build_source_text("service", entity, resolved)
     new_hash = source_hash(source_text)
 
     existing_point = await qdrant_db.get_point("service", entity_id)

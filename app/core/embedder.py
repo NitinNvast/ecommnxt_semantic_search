@@ -46,7 +46,6 @@ def build_service_text(entity: dict, resolved: Optional[dict] = None) -> str:
     parts = [
         _clean(entity.get("service")),
         r.get("category_name", ""),
-        " ".join(filter(None, [r.get("brand_name", ""), r.get("country_name", "")])),
         _clean(entity.get("description")),
         "; ".join(detail_parts)[:500],
     ]
